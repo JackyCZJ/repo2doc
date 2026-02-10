@@ -1,126 +1,186 @@
 ---
 name: repo2doc
-description: Deep repository architecture analysis and evidence-based documentation generation. Use when the user provides a Git URL (or local repo path) and wants: (1) architecture/source-code deep dive, (2) module and flow analysis, (3) a detailed clickable handbook mapped to project structure, and (4) module-specific documentation files named after real modules.
+description: 将代码仓库整理为结构化项目文档（非报告）。适用于：项目总览、安装与配置、功能概括、功能点逐章讲解（实现细节+设计原理）、以及功能点内的逐模块子章节拆解。
 ---
 
 # repo2doc
 
-Produce a structure-mirrored, evidence-first technical handbook from a repository.
+把仓库输出为"可读、可落地、可维护"的项目文档，不是分析报告。
 
-## Inputs
+## 文档主线（固定）
 
-Collect these inputs before execution:
-- Repository source: Git URL or local path
-- Target revision: branch/tag/commit (default: default branch)
-- Output root (default: `Report/<ProjectName>/`)
-- Depth mode: `standard` or `audit`
-- Language preference for output
+文档必须按以下主线组织：
 
-If the repository is remote, clone it locally first.
+1. 项目总览
+2. 入门指南（安装与配置）
+3. 功能概括
+4. 功能点 1（实现细节 + 设计原理）
+5. 功能点 2（实现细节 + 设计原理）
+6. 以此类推
 
-## Workflow
+## 输入参数
 
-### 1) Baseline and inventory
+执行前明确：
 
-- Lock analysis revision (record branch + commit hash).
-- Detect language/runtime/build entrypoints.
-- Build a directory map and identify major domains/modules.
-- Extract config surfaces (`.env*`, yaml/json/toml configs, CI, deployment files).
+- 仓库来源：Git URL 或本地路径
+- 目标版本：branch/tag/commit（默认分支）
+- 输出目录：默认 `Report/<ProjectName>/`
+- 深度模式：`standard` 或 `audit`
+- 输出语言
 
-Write baseline metadata and navigation to `Report/<ProjectName>/00-reading-guide.md`.
+## 输出文件（最小集合）
 
-### 2) Architecture decomposition
+默认输出到 `Report/<ProjectName>/`，至少包含：
 
-Analyze top-down:
-- System boundary: external dependencies, service boundaries, data stores
-- Layering pattern: API/application/domain/infrastructure (or equivalent)
-- Runtime shape: monolith, service split, workers, jobs, schedulers
-- Cross-cutting concerns: auth, logging, metrics, tracing, error handling
+- `00-reading-guide.md`（文档导航）
+- `project-overview.md`（项目总览）
+- `getting-started.md`（安装、配置、启动）
+- `feature-summary.md`（功能概括）
+- `<module-name>.md`（一个或多个模块文档）
 
-Write architecture output to `Report/<ProjectName>/system-overview.md`.
+## 模块文档结构（强制）
 
-### 3) Flow and module deep dive
+每个 `<module-name>.md` 必须包含：
 
-Select core user/business flows first, then trace code paths:
-- Entry -> orchestration -> domain logic -> persistence/integration -> return path
-- Include error paths, retries/timeouts, and failover behavior where present
-- Map important modules to responsibilities and key interfaces
+- 模块定位
+- 功能概括
+- 功能点章节（`功能点：...`）
 
-Write outputs to:
-- `Report/<ProjectName>/module-map.md`
-- `Report/<ProjectName>/core-flows.md`
-- `Report/<ProjectName>/<module-name>.md` (one file per major module; use real module names, not template names)
+每个功能点章节必须包含：
 
-### 4) Data and operations view
+1. `实现细节`
+2. `设计原理`
+3. `关键代码片段`
+4. `涉及模块`
 
-Document:
-- Data models and state transitions
-- Configuration hierarchy and precedence
-- Startup/run/deploy behavior
-- Observability points (log/metric/trace hooks)
+### 涉及模块子章节（强制）
 
-Write outputs to:
-- `Report/<ProjectName>/data-and-state.md`
-- `Report/<ProjectName>/runtime-and-config.md`
+`涉及模块` 下必须进一步拆成逐模块子章节：
 
-### 5) Risk and improvement plan
+- `#### 模块：<模块名>`（至少一个）
+- 每个"模块："子章节**必须**包含以下四要素：
+  - **职责**：该模块在本功能点中承担的具体职责（一句话+扩展说明）
+  - **实现细节**：该模块如何配合实现该功能（接口调用、数据流转、状态变更）
+  - **设计原理**：该模块的设计决策依据（为什么这样实现，权衡了哪些方案）
+  - **协作关系**：与当前模块的调用/被调用关系，数据流向
+- （建议）模块级代码片段：展示该模块的关键接口或内部实现
 
-Classify findings by severity:
-- `P0`: security/correctness failures, fail-open auth, critical data integrity risk
-- `P1`: high-impact stability/performance/operability issues
-- `P2`: maintainability/documentation/developer-experience debt
+> **重点**：像"Web 代码生成器""访问接口"等跨模块能力，必须把涉及的每个模块单独写成子章节，不能笼统合并一句话带过。
 
-For each finding include: trigger, impact, evidence, fix direction, verification check.
+### 子章节写作示例
 
-Write outputs to:
-- `Report/<ProjectName>/risks-and-techdebt.md`
-- `Report/<ProjectName>/optimization-roadmap.md`
+```markdown
+#### 模块：network
 
-### 6) Evidence index and linkability
+- **职责**：负责底层网络连接的管理，包括 TCP/UDP 连接的建立、维护和断开
 
-- Add a source index with all cited files.
-- Ensure every major conclusion links to source references in `path:line` format.
-- Keep headings stable and anchor-friendly.
+- **实现细节**：
+  - 使用 `Connector`  trait 抽象不同传输协议
+  - 连接池管理活跃连接，通过 `PeerManager` 统一调度
+  - 心跳机制每 30 秒检测连接健康状态
 
-Write source index to `Report/<ProjectName>/appendix-source-index.md`.
+- **设计原理**：
+  - 采用 trait 抽象而非枚举，便于后续扩展新协议（如 QUIC）
+  - 连接池设计参考了数据库连接池模式，平衡资源占用与连接延迟
 
-## Documentation guidance
+- **协作关系**：
+  - 被 `PeerManager` 调用创建新连接
+  - 向上层 `Tunnel` 接口提供字节流传输能力
+  - 与 `crypto` 模块协作完成握手后的加密传输
+```
 
-Use `references/spec.md` as guidance.
+## 文档写作规则
 
-Default quality goals:
-- Evidence-first: important claims require code/config evidence.
-- Structure mirror: chapter structure follows repository layout.
-- Layered readability: executive view before module details.
-- Actionable findings: each risk has fix + validation guidance.
-- No fluff: avoid generic text without repository-specific evidence.
+- 输出是"项目文档"，不是"报告"。
+- 文档正文禁止写工具执行过程，不写"由某技能/脚本生成"。
+- 不输出空模板、占位标题、TODO。
+- 功能点与模块子章节必须落到真实实现，不写泛化描述。
 
-## Optional quality checks
+## 使用流程（Claude Code 集成）
 
-Validation is optional and should not block report generation by default.
+### 步骤 1：发现模块
 
-- Scaffold: `scripts/scaffold-report.sh <ProjectName> --modules <csv>`
-- Validate (warn-only default): `scripts/validate-report.sh <ProjectName>`
-- Validate (strict + fail on errors): `scripts/validate-report.sh <ProjectName> --strict --enforce`
+```bash
+scripts/discover-modules.sh <repo-path> --top 6 --format csv
+```
 
-## Output checklist
+### 步骤 2：生成文档骨架
 
-Deliver all of the following:
-- Full handbook files under `Report/<ProjectName>/`
-- `project-overview.md` (installation, usage, basic QA)
-- Module deep-dive files named by real modules (for example: `auth-service.md`, `scheduler.md`)
-- Deep-dive sections must be project-adaptive (for example: state machine, temporal behavior, mechanism implementation/flow), not rigidly fixed
-- Include Mermaid diagrams as embedded markdown blocks by default; do not require SVG generation unless explicitly requested
-- Clickable table of contents in `00-reading-guide.md`
-- Risk register with `P0/P1/P2`
-- Source evidence index (`appendix-source-index.md`)
-- Short “analysis limitations” note for unverified assumptions
+```bash
+scripts/scaffold-report.sh <ProjectName> --repo <repo-path> --auto-modules 6
+```
 
-## Escalation triggers
+### 步骤 3：分析模块（辅助理解）
 
-Call out blockers early if:
-- Missing dependencies prevent static/dynamic verification
-- Monorepo scope is too large for one pass
-- Build scripts are non-deterministic or environment-coupled
+```bash
+scripts/analyze-module.sh <repo-path> <module-name> --output-format markdown
+```
 
-When blocked, still ship a partial report with explicit gaps and next verification steps.
+### 步骤 4：填充文档内容
+
+按顺序填充：
+
+1. `project-overview.md` - 阅读 README、Cargo.toml/go.mod 等，提炼项目定位
+2. `getting-started.md` - 检查构建脚本、CI 配置、文档中的安装说明
+3. `feature-summary.md` - 基于目录结构和主要模块推断功能分层
+4. `<module>.md` - 深入源码，按"功能点"组织内容
+
+**填充模块文档时的检查清单：**
+- [ ] 每个功能点有独立的章节（`## 功能点：XXX`）
+- [ ] 每个功能点包含"实现细节"小节
+- [ ] 每个功能点包含"设计原理"小节
+- [ ] 每个功能点包含"关键代码片段"（代码块形式）
+- [ ] 每个功能点包含"涉及模块"小节
+- [ ] "涉及模块"下有至少一个 `#### 模块：XXX` 子章节
+- [ ] 每个"模块："子章节包含：职责、实现细节、设计原理、协作关系
+
+### 步骤 5：校验并修正
+
+```bash
+scripts/validate-report.sh <ProjectName> --strict --depth-profile audit --enforce
+```
+
+## 校验要求
+
+建议执行：
+
+```bash
+scripts/validate-report.sh <ProjectName> --strict --depth-profile audit --enforce
+```
+
+校验重点：
+
+- 必需文档齐全
+- 模块文档数量达标
+- 功能点章节数量达标
+- 每个功能点包含"实现细节 + 设计原理"
+- 严格模式下每个功能点有代码片段
+- 严格模式下每个功能点有"涉及模块"且至少一个"模块："子章节
+- **严格模式下每个"模块："子章节必须有"实现细节"和"设计原理"**
+- 文档中无工具/过程痕迹
+
+## 深度模式定义
+
+### standard（标准模式）
+
+- 模块文档 >= 1
+- 每个模块文档功能点章节 >= 2
+- 不强制要求代码片段
+- 不强制要求模块子章节的完整性
+
+### audit（审计模式）
+
+- 模块文档 >= 2
+- 每个模块文档功能点章节 >= 3
+- 强制要求每个功能点有代码片段
+- 强制要求每个功能点有"涉及模块"及逐模块子章节
+- **强制要求每个"模块："子章节包含"实现细节"和"设计原理"**
+
+## 常见错误避免
+
+1. **不要把分析报告当文档** - 删除所有"本报告""本文档由"等过程性描述
+2. **不要留空章节** - 每个功能点必须有实质内容
+3. **不要合并模块描述** - 跨模块功能要逐个模块展开
+4. **不要只贴代码不解释** - 代码片段需配合设计原理说明
+5. **不要省略模块子章节的四要素** - 职责、实现细节、设计原理、协作关系缺一不可
+6. **不要把"涉及模块"写成列表** - 必须展开为 `#### 模块：XXX` 子章节形式

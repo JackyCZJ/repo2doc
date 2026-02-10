@@ -1,37 +1,38 @@
 # repo2doc
 
-将任意仓库转成结构化分析报告，默认输出到 `Report/<ProjectName>/`。
+将代码仓库整理为结构化项目文档。
 
-## Skill 目录结构
+## 快速开始
 
-- `SKILL.md`：技能入口与执行流程
-- `references/spec.md`：产出规范（证据、结构、风险分级）
-- `templates/`：报告模板骨架（用于初始化内容）
-- `scripts/`：脚手架与质量检查脚本
+```bash
+# 1. 发现模块
+scripts/discover-modules.sh /path/to/repo --top 6 --format csv
 
-## 默认报告结构（最小合同）
+# 2. 生成文档骨架
+scripts/scaffold-report.sh MyProject --repo /path/to/repo --auto-modules 6
 
-- `00-reading-guide.md`
-- `project-overview.md`
-- `<module-name>.md`（一个或多个模块深挖文档）
-- `appendix-source-index.md`
+# 3. 填充内容后校验
+scripts/validate-report.sh MyProject --strict --depth-profile audit --enforce
+```
 
-## 自适应专题（按项目特征选）
+## 目录结构
 
-- `layered-highlights-and-hardparts.md`
-- `temporal-behavior.md`
-- `state-machine-analysis.md`
-- `mechanism-implementation.md`
-- `mechanism-flow.md`
+- `SKILL.md` - 完整技能文档（含写作规范）
+- `references/spec.md` - 技术规范
+- `templates/` - 文档模板
+- `scripts/` - 自动化脚本
 
-## 脚本
+## 脚本说明
 
-- `scripts/scaffold-report.sh`
-  - 最小生成：`scripts/scaffold-report.sh <ProjectName>`
-  - 指定模块：`scripts/scaffold-report.sh <ProjectName> --modules api,worker,scheduler`
-  - 自适应专题：`scripts/scaffold-report.sh <ProjectName> --adaptive layered,state-machine,flow`
-  - 生成支撑章节：`scripts/scaffold-report.sh <ProjectName> --with-supporting`
-- `scripts/validate-report.sh`
-  - 默认为提示模式（不强制失败）：`scripts/validate-report.sh <ProjectName>`
-  - 严格检查：`scripts/validate-report.sh <ProjectName> --strict --min-citations 5`
-  - 强制失败（可选）：`scripts/validate-report.sh <ProjectName> --strict --enforce`
+| 脚本 | 用途 |
+|------|------|
+| `discover-modules.sh` | 按代码量发现核心模块 |
+| `scaffold-report.sh` | 生成文档骨架 |
+| `analyze-module.sh` | 分析单个模块结构 |
+| `validate-report.sh` | 校验文档质量 |
+
+## 自检
+
+```bash
+scripts/test-smoke.sh
+```
