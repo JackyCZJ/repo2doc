@@ -1,26 +1,25 @@
 # repo2doc Specification
 
-This file defines strict output standards for repository-to-document analysis.
+This file defines recommended output standards for repository-to-document analysis.
 
 ## 1. Folder and file contract
 
 Default output root: `Report/<ProjectName>/`
 
-Required files:
+Minimum files:
 - `00-reading-guide.md`
-- `A-01-getting-started.md`
-- `B-01-deep-dive.md`
+- `project-overview.md`
+- `<module-name>.md` (one or more module deep-dive docs)
 - `appendix-source-index.md`
 
 Recommended supporting files:
-- `01-system-overview.md`
-- `02-module-map.md`
-- `03-core-flows.md`
-- `04-deep-dives.md`
-- `05-data-and-state.md`
-- `06-runtime-and-config.md`
-- `07-risks-and-techdebt.md`
-- `08-optimization-roadmap.md`
+- `system-overview.md`
+- `module-map.md`
+- `core-flows.md`
+- `data-and-state.md`
+- `runtime-and-config.md`
+- `risks-and-techdebt.md`
+- `optimization-roadmap.md`
 
 ## 2. Citation contract
 
@@ -28,7 +27,7 @@ Use source evidence format:
 - `relative/path/to/file.ext:line`
 
 Rules:
-- Each key conclusion must include at least one citation.
+- Each key conclusion should include at least one citation.
 - Prefer direct implementation evidence over comments/docstrings.
 - If no direct evidence exists, label as `Assumption` and explain why.
 
@@ -36,15 +35,15 @@ Rules:
 
 Use a **minimum contract + project-adaptive sections** approach.
 
-### 3.1 Minimum contract (always required)
+### 3.1 Minimum contract
 - `00-reading-guide.md`
-- `A-01-getting-started.md` (what/install/usage/basic QA)
-- `B-01-deep-dive.md` (architecture + key hard parts + key highlights)
+- `project-overview.md` (what/install/usage/basic QA)
+- `<module-name>.md` (architecture + key hard parts + key highlights for each major module)
 - `appendix-source-index.md`
 
-### 3.2 Adaptive deep-dive sections (required to be tailored)
+### 3.2 Adaptive deep-dive sections (tailor by repository)
 Do **not** force the same structure for every repo.
-Choose sections based on project characteristics, e.g.:
+Choose sections based on project characteristics, for example:
 - temporal behavior (timeouts/retries/ordering)
 - state machine behavior
 - mechanism implementation (protocol, scheduler, plugin, cache, queue)
@@ -52,7 +51,7 @@ Choose sections based on project characteristics, e.g.:
 
 Rules:
 - Include only sections with real evidence in that repository.
-- Rename headings to match project terminology.
+- Name files by module/topic semantics, not by template IDs.
 - Explicitly mark omitted sections as `Not Applicable` when expected but absent.
 
 ### 3.3 Mermaid usage
@@ -101,7 +100,7 @@ For each risk item, include:
 
 ## 6. Implementation-detail contract
 
-For each key highlight/hard-part, include at least one "implementation card" with:
+For each key highlight/hard-part, include at least one implementation card with:
 - `What`: one-line behavior summary
 - `Where`: exact code location (`path:line`)
 - `How`: 5-20 lines code snippet (or pseudo-snippet when long)
@@ -141,3 +140,8 @@ Always include a short limitations section covering:
 - Environment gaps
 - Dependency assumptions
 - Untested runtime scenarios
+
+## 10. Validation mode
+
+- Default mode: warn-only checks (non-blocking).
+- Enforced mode: enable only when the user explicitly requests fail-on-error quality gates.
