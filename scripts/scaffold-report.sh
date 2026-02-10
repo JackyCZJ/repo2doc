@@ -12,12 +12,14 @@ Options:
   --modules <csv>            Comma-separated module names (default: core)
   --repo <path>              Repository path (used by --auto-modules)
   --auto-modules <n>         Auto-pick top N modules by LOC from repo
+  --lang <lang>              Output language: zh|en (default: zh)
   --force                    Overwrite existing files
   -h, --help                 Show help
 
 Examples:
   scaffold-report.sh tvscreener --modules app,field
   scaffold-report.sh tvscreener --repo /path/to/repo --auto-modules 6
+  scaffold-report.sh tvscreener --lang en --modules core
 USAGE
 }
 
@@ -35,6 +37,7 @@ TPL="${SCRIPT_DIR%/scripts}/templates"
 MODULES="core"
 REPO_PATH=""
 AUTO_MODULES=0
+LANG="zh"
 FORCE=0
 
 # 统一校验选项参数，避免缺参导致 set -u 中断。
@@ -86,6 +89,11 @@ while [[ $# -gt 0 ]]; do
       AUTO_MODULES="$2"
       shift 2
       ;;
+    --lang)
+      require_option_value "$1" "${2-}"
+      LANG="$2"
+      shift 2
+      ;;
     --force)
       FORCE=1
       shift
@@ -103,6 +111,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_non_negative_integer "--auto-modules" "$AUTO_MODULES"
+
+# Validate language option
+case "$LANG" in
+  zh|en)
+    ;;
+  *)
+    echo "[FAIL] unsupported language: $LANG (must be 'zh' or 'en')" >&2
+    exit 2
+    ;;
+esac
 
 # 解析模板目录：支持绝对路径、当前目录相对路径、脚本目录相对路径。
 resolve_template_root() {
@@ -127,6 +145,11 @@ resolve_template_root() {
 }
 
 TPL="$(resolve_template_root "$TPL")"
+
+# Apply language subdirectory for built-in templates
+if [[ "$TPL" == *"/templates" && "$LANG" != "zh" ]]; then
+  TPL="${TPL}/${LANG}"
+fi
 ROOT="${ROOT_BASE}/${PROJECT}"
 mkdir -p "$ROOT"
 
@@ -245,7 +268,11 @@ for raw_name in "${module_names[@]}"; do
   fi
 
   cp "$TPL/module-detail.md" "$dst"
-  escaped_title="$(escape_sed_replacement "# ${name} 模块文档")"
+  if [[ "$LANG" == "en" ]]; then
+    escaped_title="$(escape_sed_replacement "# ${name} Module Documentation")"
+  else
+    escaped_title="$(escape_sed_replacement "# ${name} 模块文档")"
+  fi
   portable_sed_inplace "1s|^# .*|${escaped_title}|" "$dst"
 
   module_files+=("$(basename "$dst")")
@@ -256,7 +283,11 @@ done
 if [[ ${#module_files[@]} -eq 0 ]]; then
   dst="$ROOT/core.md"
   cp "$TPL/module-detail.md" "$dst"
-  portable_sed_inplace "1s|^# .*|# core 模块文档|" "$dst"
+  if [[ "$LANG" == "en" ]]; then
+    portable_sed_inplace "1s|^# .*|# core Module Documentation|" "$dst"
+  else
+    portable_sed_inplace "1s|^# .*|# core 模块文档|" "$dst"
+  fi
   module_files+=("core.md")
   module_titles+=("core")
   echo "[OK] $dst"
@@ -266,21 +297,39 @@ guide="$ROOT/00-reading-guide.md"
 if [[ -f "$guide" && $FORCE -ne 1 ]]; then
   echo "[SKIP] exists: $guide"
 else
-  {
-    echo "# ${PROJECT} 文档导航"
-    echo
-    echo "## 项目级文档"
-    echo "- [项目总览](./project-overview.md)"
-    echo "- [入门指南（安装与配置）](./getting-started.md)"
-    echo "- [功能概括](./feature-summary.md)"
-    echo
-    echo "## 模块文档"
-    for idx in "${!module_files[@]}"; do
-      f="${module_files[$idx]}"
-      title="${module_titles[$idx]:-${f%.md}}"
-      echo "- [${title}](./${f})"
-    done
-  } > "$guide"
+  if [[ "$LANG" == "en" ]]; then
+    {
+      echo "# ${PROJECT} Documentation Guide"
+      echo
+      echo "## Project-Level Documents"
+      echo "- [Project Overview](./project-overview.md)"
+      echo "- [Getting Started (Installation & Configuration)](./getting-started.md)"
+      echo "- [Feature Summary](./feature-summary.md)"
+      echo
+      echo "## Module Documents"
+      for idx in "${!module_files[@]}"; do
+        f="${module_files[$idx]}"
+        title="${module_titles[$idx]:-${f%.md}}"
+        echo "- [${title}](./${f})"
+      done
+    } > "$guide"
+  else
+    {
+      echo "# ${PROJECT} 文档导航"
+      echo
+      echo "## 项目级文档"
+      echo "- [项目总览](./project-overview.md)"
+      echo "- [入门指南（安装与配置）](./getting-started.md)"
+      echo "- [功能概括](./feature-summary.md)"
+      echo
+      echo "## 模块文档"
+      for idx in "${!module_files[@]}"; do
+        f="${module_files[$idx]}"
+        title="${module_titles[$idx]:-${f%.md}}"
+        echo "- [${title}](./${f})"
+      done
+    } > "$guide"
+  fi
   echo "[OK] $guide"
 fi
 

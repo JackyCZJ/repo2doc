@@ -26,7 +26,7 @@ description: 将代码仓库整理为结构化项目文档（非报告）。适�
 - 目标版本：branch/tag/commit（默认分支）
 - 输出目录：默认 `Report/<ProjectName>/`
 - 深度模式：`standard` 或 `audit`
-- 输出语言
+- 输出语言：`zh`（中文，默认）或 `en`（英文）
 
 ## 输出文件（最小集合）
 
@@ -107,7 +107,11 @@ scripts/discover-modules.sh <repo-path> --top 6 --format csv
 ### 步骤 2：生成文档骨架
 
 ```bash
+# 中文文档（默认）
 scripts/scaffold-report.sh <ProjectName> --repo <repo-path> --auto-modules 6
+
+# 英文文档
+scripts/scaffold-report.sh <ProjectName> --repo <repo-path> --auto-modules 6 --lang en
 ```
 
 ### 步骤 3：分析模块（辅助理解）
