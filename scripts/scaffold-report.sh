@@ -8,11 +8,11 @@ Usage:
 
 Options:
   --root <dir>               Output root (default: Report)
-  --template-root <dir>      Template root (default: <skill>/templates)
   --modules <csv>            Comma-separated module names (default: core)
   --repo <path>              Repository path (used by --auto-modules)
   --auto-modules <n>         Auto-pick top N modules by LOC from repo
   --lang <lang>              Output language: zh|en (default: zh)
+  --minimal                  Create minimal scaffold (empty files only)
   --force                    Overwrite existing files
   -h, --help                 Show help
 
@@ -33,14 +33,13 @@ shift
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_BASE="Report"
-TPL="${SCRIPT_DIR%/scripts}/templates"
 MODULES="core"
 REPO_PATH=""
 AUTO_MODULES=0
 LANG="zh"
+MINIMAL=0
 FORCE=0
 
-# 统一校验选项参数，避免缺参导致 set -u 中断。
 require_option_value() {
   local option="$1"
   local value="${2-}"
@@ -51,7 +50,6 @@ require_option_value() {
   fi
 }
 
-# 校验整数参数，保证后续算术判断稳定可预测。
 require_non_negative_integer() {
   local option="$1"
   local value="$2"
@@ -67,11 +65,6 @@ while [[ $# -gt 0 ]]; do
     --root)
       require_option_value "$1" "${2-}"
       ROOT_BASE="$2"
-      shift 2
-      ;;
-    --template-root)
-      require_option_value "$1" "${2-}"
-      TPL="$2"
       shift 2
       ;;
     --modules)
@@ -94,6 +87,10 @@ while [[ $# -gt 0 ]]; do
       LANG="$2"
       shift 2
       ;;
+    --minimal)
+      MINIMAL=1
+      shift
+      ;;
     --force)
       FORCE=1
       shift
@@ -112,7 +109,6 @@ done
 
 require_non_negative_integer "--auto-modules" "$AUTO_MODULES"
 
-# Validate language option
 case "$LANG" in
   zh|en)
     ;;
@@ -122,41 +118,8 @@ case "$LANG" in
     ;;
 esac
 
-# 解析模板目录：支持绝对路径、当前目录相对路径、脚本目录相对路径。
-resolve_template_root() {
-  local candidate="$1"
-
-  if [[ -d "$candidate" ]]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  if [[ -d "$PWD/$candidate" ]]; then
-    printf '%s\n' "$PWD/$candidate"
-    return 0
-  fi
-
-  if [[ -d "${SCRIPT_DIR%/scripts}/$candidate" ]]; then
-    printf '%s\n' "${SCRIPT_DIR%/scripts}/$candidate"
-    return 0
-  fi
-
-  printf '%s\n' "$candidate"
-}
-
-TPL="$(resolve_template_root "$TPL")"
-
-# Apply language subdirectory for built-in templates
-if [[ "$TPL" == *"/templates" && "$LANG" != "zh" ]]; then
-  TPL="${TPL}/${LANG}"
-fi
 ROOT="${ROOT_BASE}/${PROJECT}"
 mkdir -p "$ROOT"
-
-if [[ ! -d "$TPL" ]]; then
-  echo "[FAIL] template root not found: $TPL" >&2
-  exit 2
-fi
 
 if [[ "$AUTO_MODULES" -gt 0 ]]; then
   if [[ -z "$REPO_PATH" ]]; then
@@ -190,47 +153,399 @@ slugify() {
   printf '%s\n' "$slug"
 }
 
-# 兼容 GNU/BSD sed 的原地替换，确保跨平台可用。
-portable_sed_inplace() {
-  local expr="$1"
-  local target="$2"
-
-  if sed --version >/dev/null 2>&1; then
-    sed -i -e "$expr" "$target"
-  else
-    sed -i '' -e "$expr" "$target"
-  fi
-}
-
-# 转义 sed replacement 特殊字符，避免项目名或标题替换失败。
-escape_sed_replacement() {
-  printf '%s' "$1" | sed -e 's/[\\/&]/\\&/g'
-}
-
-write_template_or_fail() {
-  local template="$1"
-  local dst="$2"
+create_file() {
+  local dst="$1"
+  local content="$2"
 
   if [[ -f "$dst" && $FORCE -ne 1 ]]; then
     echo "[SKIP] exists: $dst"
     return
   fi
 
-  if [[ ! -f "$TPL/$template" ]]; then
-    echo "[FAIL] template missing: $TPL/$template" >&2
-    exit 2
-  fi
-
-  cp "$TPL/$template" "$dst"
+  printf '%s' "$content" > "$dst"
   echo "[OK] $dst"
 }
 
-write_template_or_fail "project-overview.md" "$ROOT/project-overview.md"
-write_template_or_fail "getting-started.md" "$ROOT/getting-started.md"
-write_template_or_fail "feature-summary.md" "$ROOT/feature-summary.md"
+generate_project_overview() {
+  if [[ "$LANG" == "en" ]]; then
+    cat <<'EOF'
+# Project Overview
+
+## 1. Project Positioning
+
+One-sentence description of the core problem this project solves.
+
+- Target users:
+- Core scenarios:
+- Differentiation:
+
+## 2. Architecture Overview
+
+```
+[External Systems/Users]
+      │
+      ▼
+[Entry/API Layer] ──→ [Core Business Layer] ──→ [Data/Storage Layer]
+                          │
+                          ▼
+                    [Infrastructure/Utils Layer]
+```
+
+Key data flows:
+1.
+2.
+
+## 3. Key Directory Structure
+
+| Directory | Description | Responsibility |
+|-----------|-------------|----------------|
+| `src/` | Main source directory | Core business logic |
+| ... | ... | ... |
+
+## 4. Tech Stack
+
+- Language:
+- Build tool:
+- Core dependencies:
+
+EOF
+  else
+    cat <<'EOF'
+# 项目总览
+
+## 1. 项目定位
+
+一句话描述项目解决的核心问题。
+
+- 目标用户：
+- 核心场景：
+- 差异化：
+
+## 2. 架构总览
+
+```
+[外部系统/用户]
+      │
+      ▼
+[入口层/API层] ──→ [核心业务层] ──→ [数据/存储层]
+                          │
+                          ▼
+                    [基础设施/工具层]
+```
+
+关键数据流：
+1.
+2.
+
+## 3. 关键目录说明
+
+| 目录 | 说明 | 对应职责 |
+|------|------|----------|
+| `src/` | 源代码主目录 | 核心业务实现 |
+| ... | ... | ... |
+
+## 4. 技术栈
+
+- 语言：
+- 构建工具：
+- 核心依赖：
+
+EOF
+  fi
+}
+
+generate_getting_started() {
+  if [[ "$LANG" == "en" ]]; then
+    cat <<'EOF'
+# Getting Started
+
+## 1. Environment Requirements
+
+| Dependency | Version | Required/Optional | Notes |
+|------------|---------|-------------------|-------|
+| | | | |
+
+## 2. Installation
+
+### From Source
+
+```bash
+git clone <repo-url>
+cd
+```
+
+### Package Manager
+
+```bash
+
+```
+
+## 3. Configuration
+
+- Global config:
+- Project config:
+
+## 4. Verification
+
+```bash
+# Check version
+
+# Run tests
+
+```
+
+## 5. FAQ
+
+EOF
+  else
+    cat <<'EOF'
+# 入门指南
+
+## 1. 环境要求
+
+| 依赖 | 版本 | 必需/可选 | 说明 |
+|------|------|-----------|------|
+| | | | |
+
+## 2. 安装步骤
+
+### 从源码安装
+
+```bash
+git clone <repo-url>
+cd
+```
+
+### 包管理器安装
+
+```bash
+
+```
+
+## 3. 配置说明
+
+- 全局配置：
+- 项目配置：
+
+## 4. 验证安装
+
+```bash
+# 检查版本
+
+# 运行测试
+
+```
+
+## 5. 常见问题
+
+EOF
+  fi
+}
+
+generate_feature_summary() {
+  if [[ "$LANG" == "en" ]]; then
+    cat <<'EOF'
+# Feature Summary
+
+## 1. Feature List
+
+| Feature | Description | Status | Module |
+|---------|-------------|--------|--------|
+| | | | |
+
+## 2. Feature Layers
+
+- **User Layer (CLI/API/UI)**:
+- **Business Logic Layer**:
+- **Infrastructure Layer**:
+
+## 3. Typical Workflows
+
+### Workflow 1:
+
+1.
+2.
+3.
+
+## 4. Feature Dependencies
+
+EOF
+  else
+    cat <<'EOF'
+# 功能概括
+
+## 1. 功能清单
+
+| 功能 | 说明 | 状态 | 对应模块 |
+|------|------|------|----------|
+| | | | |
+
+## 2. 功能分层
+
+- **用户层（CLI/API/界面）**：
+- **业务逻辑层**：
+- **基础设施层**：
+
+## 3. 典型流程
+
+### 流程 1：
+
+1.
+2.
+3.
+
+## 4. 功能依赖
+
+EOF
+  fi
+}
+
+generate_module_doc() {
+  local name="$1"
+  if [[ "$LANG" == "en" ]]; then
+    cat <<EOF
+# ${name} Module
+
+## 1. Module Positioning
+
+- Position in architecture:
+- Core responsibilities:
+- Relations with upstream/downstream modules:
+
+## 2. Feature Summary
+
+| Feature | Description |
+|---------|-------------|
+| | |
+
+## 3. Feature: <name>
+
+### Implementation Details
+
+- Entry point/interface:
+- Core algorithm/flow:
+- Key data structures:
+- State management:
+
+### Design Principles
+
+- Why this design:
+- Trade-offs considered:
+- Core problem solved:
+
+### Key Code Snippets
+
+\`\`\`
+
+\`\`\`
+
+### Involved Modules
+
+#### Module: <name>
+
+- **Responsibility**:
+- **Implementation Details**:
+- **Design Principles**:
+- **Collaboration**:
+
+EOF
+  else
+    cat <<EOF
+# ${name} 模块
+
+## 1. 模块定位
+
+- 在架构中的位置：
+- 核心职责：
+- 与上下游模块的关系：
+
+## 2. 功能概括
+
+| 功能点 | 一句话描述 |
+|--------|------------|
+| | |
+
+## 3. 功能点：<名称>
+
+### 实现细节
+
+- 入口点/对外接口：
+- 核心算法或处理流程：
+- 关键数据结构：
+- 状态管理策略：
+
+### 设计原理
+
+- 为什么这样设计：
+- 权衡了哪些方案：
+- 解决了什么核心问题：
+
+### 关键代码片段
+
+\`\`\`
+
+\`\`\`
+
+### 涉及模块
+
+#### 模块：<名称>
+
+- **职责**：
+- **实现细节**：
+- **设计原理**：
+- **协作关系**：
+
+EOF
+  fi
+}
+
+generate_reading_guide() {
+  local module_files=("$@")
+  if [[ "$LANG" == "en" ]]; then
+    {
+      echo "# ${PROJECT} Documentation Guide"
+      echo
+      echo "## Project-Level Documents"
+      echo "- [Project Overview](./project-overview.md)"
+      echo "- [Getting Started (Installation & Configuration)](./getting-started.md)"
+      echo "- [Feature Summary](./feature-summary.md)"
+      echo
+      echo "## Module Documents"
+      for f in "${module_files[@]}"; do
+        local title="${f%.md}"
+        echo "- [${title}](./${f})"
+      done
+    }
+  else
+    {
+      echo "# ${PROJECT} 文档导航"
+      echo
+      echo "## 项目级文档"
+      echo "- [项目总览](./project-overview.md)"
+      echo "- [入门指南（安装与配置）](./getting-started.md)"
+      echo "- [功能概括](./feature-summary.md)"
+      echo
+      echo "## 模块文档"
+      for f in "${module_files[@]}"; do
+        local title="${f%.md}"
+        echo "- [${title}](./${f})"
+      done
+    }
+  fi
+}
+
+# Create project-level documents
+if [[ $MINIMAL -eq 1 ]]; then
+  create_file "$ROOT/project-overview.md" "# $(if [[ "$LANG" == "en" ]]; then echo "Project Overview"; else echo "项目总览"; fi)\n\n"
+  create_file "$ROOT/getting-started.md" "# $(if [[ "$LANG" == "en" ]]; then echo "Getting Started"; else echo "入门指南"; fi)\n\n"
+  create_file "$ROOT/feature-summary.md" "# $(if [[ "$LANG" == "en" ]]; then echo "Feature Summary"; else echo "功能概括"; fi)\n\n"
+else
+  create_file "$ROOT/project-overview.md" "$(generate_project_overview)"
+  create_file "$ROOT/getting-started.md" "$(generate_getting_started)"
+  create_file "$ROOT/feature-summary.md" "$(generate_feature_summary)"
+fi
 
 declare -a module_files=()
-declare -a module_titles=()
 declare -a used_slugs=()
 
 slug_used() {
@@ -263,81 +578,56 @@ for raw_name in "${module_names[@]}"; do
   if [[ -f "$dst" && $FORCE -ne 1 ]]; then
     echo "[SKIP] exists: $dst"
     module_files+=("$(basename "$dst")")
-    module_titles+=("$name")
     continue
   fi
 
-  cp "$TPL/module-detail.md" "$dst"
-  if [[ "$LANG" == "en" ]]; then
-    escaped_title="$(escape_sed_replacement "# ${name} Module Documentation")"
+  if [[ $MINIMAL -eq 1 ]]; then
+    if [[ "$LANG" == "en" ]]; then
+      create_file "$dst" "# ${name} Module\n\n"
+    else
+      create_file "$dst" "# ${name} 模块\n\n"
+    fi
   else
-    escaped_title="$(escape_sed_replacement "# ${name} 模块文档")"
+    create_file "$dst" "$(generate_module_doc "$name")"
   fi
-  portable_sed_inplace "1s|^# .*|${escaped_title}|" "$dst"
-
   module_files+=("$(basename "$dst")")
-  module_titles+=("$name")
-  echo "[OK] $dst"
 done
 
 if [[ ${#module_files[@]} -eq 0 ]]; then
   dst="$ROOT/core.md"
-  cp "$TPL/module-detail.md" "$dst"
-  if [[ "$LANG" == "en" ]]; then
-    portable_sed_inplace "1s|^# .*|# core Module Documentation|" "$dst"
+  if [[ $MINIMAL -eq 1 ]]; then
+    if [[ "$LANG" == "en" ]]; then
+      create_file "$dst" "# core Module\n\n"
+    else
+      create_file "$dst" "# core 模块\n\n"
+    fi
   else
-    portable_sed_inplace "1s|^# .*|# core 模块文档|" "$dst"
+    create_file "$dst" "$(generate_module_doc "core")"
   fi
   module_files+=("core.md")
-  module_titles+=("core")
-  echo "[OK] $dst"
 fi
 
 guide="$ROOT/00-reading-guide.md"
 if [[ -f "$guide" && $FORCE -ne 1 ]]; then
   echo "[SKIP] exists: $guide"
 else
-  if [[ "$LANG" == "en" ]]; then
-    {
-      echo "# ${PROJECT} Documentation Guide"
-      echo
-      echo "## Project-Level Documents"
-      echo "- [Project Overview](./project-overview.md)"
-      echo "- [Getting Started (Installation & Configuration)](./getting-started.md)"
-      echo "- [Feature Summary](./feature-summary.md)"
-      echo
-      echo "## Module Documents"
-      for idx in "${!module_files[@]}"; do
-        f="${module_files[$idx]}"
-        title="${module_titles[$idx]:-${f%.md}}"
-        echo "- [${title}](./${f})"
-      done
-    } > "$guide"
-  else
-    {
-      echo "# ${PROJECT} 文档导航"
-      echo
-      echo "## 项目级文档"
-      echo "- [项目总览](./project-overview.md)"
-      echo "- [入门指南（安装与配置）](./getting-started.md)"
-      echo "- [功能概括](./feature-summary.md)"
-      echo
-      echo "## 模块文档"
-      for idx in "${!module_files[@]}"; do
-        f="${module_files[$idx]}"
-        title="${module_titles[$idx]:-${f%.md}}"
-        echo "- [${title}](./${f})"
-      done
-    } > "$guide"
-  fi
+  generate_reading_guide "${module_files[@]}" > "$guide"
   echo "[OK] $guide"
 fi
 
-if command -v rg >/dev/null 2>&1; then
-  escaped_project="$(escape_sed_replacement "$PROJECT")"
-  while IFS= read -r file; do
-    portable_sed_inplace "s|{{ProjectName}}|${escaped_project}|g" "$file"
-  done < <(rg -F -l '{{ProjectName}}' "$ROOT")
-fi
-
 echo "Scaffolded: $ROOT"
+echo ""
+echo "Next steps:"
+if [[ "$LANG" == "en" ]]; then
+  echo "  1. Edit project-overview.md - define project positioning and architecture"
+  echo "  2. Edit getting-started.md - add installation and setup steps"
+  echo "  3. Edit feature-summary.md - list and categorize features"
+  echo "  4. Edit module docs - document implementation details and design principles"
+  echo "  5. Run: scripts/validate-report.sh ${PROJECT} --strict --enforce"
+else
+  echo "  1. 编辑 project-overview.md - 定义项目定位和架构"
+  echo "  2. 编辑 getting-started.md - 添加安装和配置步骤"
+  echo "  3. 编辑 feature-summary.md - 列出并分类功能"
+  echo "  4. 编辑模块文档 - 记录实现细节和设计原理"
+  echo "  5. 运行: scripts/validate-report.sh ${PROJECT} --strict --enforce"
+fi
